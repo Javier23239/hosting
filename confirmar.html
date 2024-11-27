@@ -1,0 +1,62 @@
+<?php
+
+
+require_once 'paypal.html';
+$config = include 'paypal.html';
+
+$orderId = $_GET['token']; 
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $config['api_base_url'] . 'v1/oauth2/token');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Accept: application/json',
+    'Accept-Language: en_US',
+]);
+curl_setopt($ch, CURLOPT_USERPWD, $config['client_id'] . ':' . $config['client_secret']);
+curl_setopt($ch, CURLOPT_POSTFIELDS, 'grant_type=client_credentials');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+$accessToken = $response['access_token'] ?? null;
+
+if (!$accessToken) {
+    echo "Error de autenticación con PayPal.";
+    exit;
+}
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $config['api_base_url'] . "v2/checkout/orders/$orderId/capture");
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    "Authorization: Bearer $accessToken",
+]);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = json_decode(curl_exec($ch), true);
+curl_close($ch);
+
+$paymentStatus = 'COMPLETED'; 
+
+if ($paymentStatus === 'COMPLETED') {
+
+    $conexion = new mysqli('localhost', 'root', '', 'figuras');
+
+    if ($conexion->connect_error) {
+        die("Error en la conexión: " . $conexion->connect_error);
+    }
+
+    $stmt = $conexion->prepare("UPDATE usuarios SET subscription_status = 'activo' WHERE id = ?");
+    $stmt->bind_param('i', $usuarioId); 
+
+    $stmt->execute();
+
+    header('Location: pago.html');
+    exit;
+} else {
+    header('Location: pago.html');
+    exit;
+}
+?>
