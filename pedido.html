@@ -1,0 +1,91 @@
+<?php
+
+require_once 'paypal.html';
+$config = include 'paypal.html';
+
+if (!isset($_POST['plan'])) {
+    echo "No seleccionaste un plan. Por favor, regresa y selecciona uno.";
+    exit;
+}
+
+$planes = [
+    'basico' => 100.00,
+    'avanzado' => 200.00,
+    'premium' => 300.00
+];
+
+$planSeleccionado = $_POST['plan'];
+if (!isset($planes[$planSeleccionado])) {
+    echo "El plan seleccionado no es válido.";
+    exit;
+}
+$plan_value = $planes[$planSeleccionado];
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $config['api_base_url'] . 'v1/oauth2/token');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Accept: application/json',
+    'Accept-Language: en_US',
+]);
+curl_setopt($ch, CURLOPT_USERPWD, $config['client_id'] . ':' . $config['client_secret']);
+curl_setopt($ch, CURLOPT_POSTFIELDS, 'grant_type=client_credentials');
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+if (curl_errno($ch)) {
+    echo 'Error en cURL: ' . curl_error($ch);
+    exit;
+}
+curl_close($ch);
+
+$response = json_decode($response, true);
+
+$accessToken = $response['access_token'] ?? null;
+
+if (!$accessToken) {
+    echo "Error de autenticación con PayPal.";
+    exit;
+}
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $config['api_base_url'] . 'v2/checkout/orders');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/json',
+    "Authorization: Bearer $accessToken",
+]);
+
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+    'intent' => 'CAPTURE',
+    'purchase_units' => [[
+        'amount' => [
+            'currency_code' => 'MXN',
+            'value' => number_format($plan_value, 2), 
+        ],
+    ]],
+    'application_context' => [
+        'return_url' => 'confirmar.html', 
+        'cancel_url' => 'http://localhost/Figuras/public/cancelar.php', 
+    ]
+]));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+if (curl_errno($ch)) {
+    echo 'Error en cURL: ' . curl_error($ch);
+    exit;
+}
+curl_close($ch);
+
+$response = json_decode($response, true);
+
+if (isset($response['links'])) {
+    foreach ($response['links'] as $link) {
+        if ($link['rel'] == 'approve') {
+            header('Location: ' . $link['href']);
+            exit;
+        }
+    }
+} else {
+    echo "Error al crear el pedido en PayPal. Respuesta: " . json_encode($response);
+}
+?>
