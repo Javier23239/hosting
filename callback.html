@@ -1,13 +1,13 @@
 
 <?php
-require_once 'autoload.php';
+require_once 'autoload.html';
 
 session_start();
 
 $client = new Google_Client();
 $client->setClientId('661183767238-d6g7ddmdefi3jgc2j77kbae4fc1e67l1.apps.googleusercontent.com');
 $client->setClientSecret('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');
-$client->setRedirectUri('http://localhost/Figuras/public/callback.php');
+$client->setRedirectUri('https://resonant-kelpie-70e555.netlify.app/callback');
 
 if (isset($_GET['code'])) {
     $token = $client->fetchAccessTokenWithAuthCode($_GET['code']);
@@ -21,7 +21,7 @@ if (isset($_GET['code'])) {
     $_SESSION['name'] = $user_info->name;
     $_SESSION['picture'] = $user_info->picture;
 
-    header('Location: index.php');
+    header('Location: index.html');
     exit();
 } else {
     echo 'Error al iniciar sesión con Google.';
